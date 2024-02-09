@@ -12,6 +12,10 @@ import PostLayout from "./PostLayout";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import api from "./api/posts";
+import Editpost from "./Editpost";
+import useWindowSize from "./hooks/useWindowSize";
+import useAxiosFetch from "./hooks/useAxiosFetch";
+import { DataProvider } from "./context/DataContext";
 
 
 function App() {
@@ -20,27 +24,15 @@ function App() {
   const [searchResults ,setSearchResults] = useState([])
   const [postTitle ,setPostTitle] = useState('')
   const [postBody , setPostBody] = useState('')
+  const [editTitle ,setEditTitle] = useState('')
+  const [editBody , setEditBody] = useState('')
   const navigate = useNavigate()
+  const {width} = useWindowSize()
+  const {data, fetchError ,isLoading} = useAxiosFetch('http://localhost:3500/posts');
 
-  useEffect(() => {
-    const fetchPosts =async () => {
-      try {
-        const response = await api.get('/posts');
-        setPosts(response.data);
-      } catch (err) {
-        if(err.response){
-          // Not in the 200 response range
-          console.log(err.response.data);
-          console.log(err.response.status);
-          console.log(err.response.headers);
-        }else{
-          console.log(`Error: ${err.message}`);
-        }
-      }
-    }
-
-    fetchPosts();
-  },[])
+ useEffect(() =>{
+  setPosts(data);
+ },[data])
 
   useEffect(() => {
     const filteredResults = posts.filter((post) => 
@@ -67,6 +59,20 @@ function App() {
     } 
   }
 
+  const handleEdit = async (id) => {
+    const datetime = format(new Date(), 'MMMM dd, yyyy pp');
+    const updatedPost = {id, title: editTitle, datetime, body:editBody};
+    try {
+      const response = await api.put(`/posts/${id}`, updatedPost)
+      setPosts(posts.map(post => post.id ===id ? {...response.data}:post));
+      setEditTitle('');
+      setEditBody('');
+      navigate('/')
+    } catch (err) {
+      console.log(`Error: ${err.message}`);
+    }
+  }
+
   const handleDelete = async (id) => {
     try{
       await api.delete(`posts/${id}`)
@@ -75,19 +81,25 @@ function App() {
       navigate('/')
       }catch(err){
         console.log(`Error: ${err.message}`);
-      }
+      } 
     }
   
   return (
     <div className="App">
       
-     <Header title='Social Media'/>
+     <Header title='Social Media' width={width}/>
      <Nav
         search={search}
         setSearch={setSearch}
      />
      <Routes>
-      <Route path="/"element ={<Home posts ={searchResults}/>} />
+      <Route path="/"element ={
+      <Home posts ={searchResults}
+      fetchError={fetchError}
+      isLoading={isLoading}
+      />
+      } />
+
       <Route path='post'>
       <Route index element={<NewPost
           handleSubmit={handleSubmit}
@@ -98,10 +110,22 @@ function App() {
       />} />
       <Route path=":id" element={<PostPage posts={posts} handleDelete={handleDelete}/>} /> 
       </Route>
+
+      <Route path="/edit/:id" element={<Editpost
+      posts={posts} 
+      handleEdit={handleEdit}
+      editBody={editBody}
+      setEditBody={setEditBody}
+      editTitle={editTitle}
+      setEditTitle={setEditTitle}/>}/>
+
       <Route path="about" element={< About/>}/>
+
       <Route path="*" element={<Missing/>}/>
+
      </Routes>
      <Footer/>
+     
     </div>
   );
 }
